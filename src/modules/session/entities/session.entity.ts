@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { DateTransformer } from '../../../common/transformers/date.transformer';
 import { jsonColumnType, dateColumnType } from '../../../common/utils/column-types';
+import { EncryptedTransformer } from '../../../common/security/encryption';
 
 export enum SessionStatus {
   CREATED = 'created',
@@ -36,8 +37,10 @@ export class Session {
   @Column({ type: jsonColumnType(), default: '{}' })
   config: Record<string, unknown>;
 
-  // Phase 3: Proxy per session
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  // Phase 3: Proxy per session.
+  // May embed credentials (user:pass@host) → encrypted at rest (AES-256-GCM).
+  // Plaintext capped at 150 chars in the DTO so the base64 ciphertext fits in 255.
+  @Column({ type: 'varchar', length: 255, nullable: true, transformer: EncryptedTransformer })
   proxyUrl: string | null;
 
   @Column({ type: 'varchar', length: 10, nullable: true })
