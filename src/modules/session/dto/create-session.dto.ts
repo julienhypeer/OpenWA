@@ -30,7 +30,7 @@ export class CreateSessionDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(255)
+  @MaxLength(150)
   proxyUrl?: string;
 
   @ApiPropertyOptional({

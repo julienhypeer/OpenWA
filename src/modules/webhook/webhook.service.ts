@@ -11,6 +11,7 @@ import { createLogger } from '../../common/services/logger.service';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { generateIdempotencyKey, generateDeliveryId } from './utils/idempotency.util';
 import { HookManager } from '../../core/hooks';
+import { assertSafeWebhookUrl } from '../../common/security/url-safety';
 
 export interface WebhookPayload {
   event: string;
@@ -50,6 +51,7 @@ export class WebhookService {
   }
 
   async create(sessionId: string, dto: CreateWebhookDto): Promise<Webhook> {
+    await assertSafeWebhookUrl(dto.url);
     const webhook = this.webhookRepository.create({
       sessionId,
       url: dto.url,
@@ -86,7 +88,10 @@ export class WebhookService {
   async update(id: string, dto: UpdateWebhookDto): Promise<Webhook> {
     const webhook = await this.findOne(id);
 
-    if (dto.url !== undefined) webhook.url = dto.url;
+    if (dto.url !== undefined) {
+      await assertSafeWebhookUrl(dto.url);
+      webhook.url = dto.url;
+    }
     if (dto.events !== undefined) webhook.events = dto.events;
     if (dto.secret !== undefined) webhook.secret = dto.secret;
     if (dto.headers !== undefined) webhook.headers = dto.headers;
