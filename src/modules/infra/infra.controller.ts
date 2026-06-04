@@ -1,9 +1,10 @@
-import { Controller, Get, Put, Post, Body } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { Public } from '../auth/decorators/auth.decorators';
+import { Public, RequireRole } from '../auth/decorators/auth.decorators';
+import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { EngineFactory } from '../../engine/engine.factory';
 import { DockerService } from '../docker';
 import { CacheService } from '../../common/cache/cache.service';
@@ -133,6 +134,10 @@ interface MigrationTables {
 
 @ApiTags('infrastructure')
 @Controller('infra')
+// Infra endpoints expose DB dumps, config writes, Docker orchestration and storage
+// file access — all administrative. Require ADMIN at the class level; the public
+// health probe below opts out individually via @Public().
+@RequireRole(ApiKeyRole.ADMIN)
 export class InfraController {
   private readonly logger = createLogger('InfraController');
 
@@ -717,11 +722,19 @@ export class InfraController {
   ): Promise<{ imported: boolean; count: number; storageType: string }> {
     const { filePath } = body;
 
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`);
+    // Constrain reads to the data directory — `filePath` is caller-supplied and would
+    // otherwise allow reading any file on the host (path traversal / arbitrary file read).
+    const dataDir = path.resolve(process.cwd(), 'data');
+    const resolved = path.resolve(dataDir, filePath);
+    if (resolved !== dataDir && !resolved.startsWith(dataDir + path.sep)) {
+      throw new BadRequestException('filePath must be located inside the data directory');
     }
 
-    const readStream = fs.createReadStream(filePath);
+    if (!fs.existsSync(resolved)) {
+      throw new NotFoundException(`File not found: ${filePath}`);
+    }
+
+    const readStream = fs.createReadStream(resolved);
     const count = await this.storageService.importFromStream(readStream);
 
     return {

@@ -57,6 +57,9 @@ uploads/
 
 # Docker
 .docker/
+# Local compose overrides (may contain secrets / host-specific port bindings)
+docker-compose.expose.yml
+docker-compose.override.yml
 
 # Misc
 *.bak

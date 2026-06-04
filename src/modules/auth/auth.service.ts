@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, UnauthorizedException, OnModuleInit } fr
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
-import { existsSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, writeFileSync, readFileSync, chmodSync } from 'fs';
 import { join } from 'path';
 import { ApiKey, ApiKeyRole } from './entities/api-key.entity';
 import { CreateApiKeyDto, UpdateApiKeyDto } from './dto';
@@ -26,16 +26,26 @@ export class AuthService implements OnModuleInit {
     let isNewKey = false;
 
     if (count === 0) {
-      // Use predictable key in development, random key in production
-      displayKey =
-        process.env.NODE_ENV === 'production' ? `owa_k1_${randomBytes(32).toString('hex')}` : 'dev-admin-key';
+      // Priority: operator-provided key (OPENWA_API_KEY) > random in production > dev key.
+      // The predictable 'dev-admin-key' must never be used on an internet-facing instance,
+      // so it is restricted to non-production AND only when no explicit key was supplied.
+      const envKey = process.env.OPENWA_API_KEY?.trim();
+      if (envKey) {
+        displayKey = envKey;
+      } else if (process.env.NODE_ENV === 'production') {
+        displayKey = `owa_k1_${randomBytes(32).toString('hex')}`;
+      } else {
+        displayKey = 'dev-admin-key';
+      }
 
       await this.seedApiKey(displayKey, 'Default Admin Key', ApiKeyRole.ADMIN);
       isNewKey = true;
 
-      // Save raw key to file for startup script to read
+      // Save raw key to file for the startup banner. Restrict to owner-only (0600) so other
+      // processes/users on the host cannot read it.
       try {
-        writeFileSync(API_KEY_FILE, displayKey, 'utf-8');
+        writeFileSync(API_KEY_FILE, displayKey, { encoding: 'utf-8', mode: 0o600 });
+        chmodSync(API_KEY_FILE, 0o600);
       } catch (err) {
         this.logger.warn('Could not save API key file', { error: String(err) });
       }

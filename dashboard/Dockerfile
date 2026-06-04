@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -6,7 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+# --legacy-peer-deps: vite@8 vs @vitejs/plugin-react@5.1.4 peer range (^4|^5|^6|^7) conflict
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
