@@ -10,6 +10,7 @@ import {
 import { Session } from '../../session/entities/session.entity';
 import { DateTransformer } from '../../../common/transformers/date.transformer';
 import { jsonColumnType, dateColumnType } from '../../../common/utils/column-types';
+import { EncryptedTransformer } from '../../../common/security/encryption';
 
 @Entity('webhooks')
 export class Webhook {
@@ -29,7 +30,9 @@ export class Webhook {
   @Column({ type: jsonColumnType(), default: '["message.received"]' })
   events: string[];
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  // Stored encrypted at rest (AES-256-GCM). Plaintext is capped at 128 chars in the
+  // DTO so the base64 ciphertext always fits within 255.
+  @Column({ type: 'varchar', length: 255, nullable: true, transformer: EncryptedTransformer })
   secret: string | null;
 
   @Column({ type: jsonColumnType(), default: '{}' })
